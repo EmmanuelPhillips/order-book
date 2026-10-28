@@ -1,5 +1,7 @@
 #include <cstdint>
+#include <cwchar>
 
+#include <algorithm>
 #include <deque>
 #include <iostream>
 #include <map>
@@ -30,7 +32,7 @@ public:
   std::int64_t get_quantity() const { return quantity_; }
   std::uint64_t get_timestamp() const { return timestamp_ns_; }
 
-  void set_quantity(std::uint64_t new_quantity) { quantity_ = new_quantity; }
+  void set_quantity(std::int64_t new_quantity) { quantity_ = new_quantity; }
 };
 
 class OrderBook {
@@ -57,11 +59,34 @@ private:
   }
 
   void fill_order() {
-    while (!buy_side_.empty() && !sell_side_.empty() &&
-           get_best_ask_price() <= get_best_bid_price()) {
-      std::int32_t buy_quantity{get_best_bid().get_quantity()};
-      std::int32_t sell_quantity{get_best_ask().get_quantity()};
-      std::int32_t fill_quantity{std::min(buy_quantity, sell_quantity)};
+    while (!buy_side_.empty() && !sell_side_.empty()) {
+      auto buy_level = buy_side_.begin();
+      auto sell_level = sell_side_.begin();
+      if (sell_level->first > buy_level->first) {
+        break;
+      }
+
+      auto &buy_order{buy_level->second.front()};
+      auto &sell_order{sell_level->second.front()};
+      auto fill_quantity{
+          std::min(buy_order.get_quantity(), sell_order.get_quantity())};
+
+      buy_order.set_quantity(buy_order.get_quantity() - fill_quantity);
+      sell_order.set_quantity(sell_order.get_quantity() - fill_quantity);
+
+      if (buy_order.get_quantity() == 0) {
+        buy_level->second.pop_front();
+      }
+      if (sell_order.get_quantity() == 0) {
+        sell_level->second.pop_front();
+      }
+
+      if (buy_level->second.empty()) {
+        buy_side_.erase(buy_level);
+      }
+      if (sell_level->second.empty()) {
+        sell_side_.erase(sell_level);
+      }
     }
   }
 
