@@ -3,6 +3,8 @@
 #include <deque>
 #include <iostream>
 #include <map>
+#include <optional>
+#include <stdexcept>
 
 class Order {
 public:
@@ -24,17 +26,44 @@ public:
 
   std::int64_t get_id() const { return id_; }
   Side get_side() const { return side_; }
-  double get_price() const { return price_; }
-  std::int32_t get_quanity() const { return quantity_; }
+  std::uint64_t get_price() const { return price_; }
+  std::int64_t get_quantity() const { return quantity_; }
   std::uint64_t get_timestamp() const { return timestamp_ns_; }
+
+  void set_quantity(std::uint64_t new_quantity) { quantity_ = new_quantity; }
 };
 
 class OrderBook {
 private:
-  std::map<std::int64_t, std::deque<Order>, std::greater<std::uint64_t>>
+  std::map<std::uint64_t, std::deque<Order>, std::greater<std::uint64_t>>
       buy_side_;
-  std::map<std::int64_t, std::deque<Order>, std::less<std::uint64_t>>
+  std::map<std::uint64_t, std::deque<Order>, std::less<std::uint64_t>>
       sell_side_;
+
+  template <typename T>
+  std::optional<Order> get_best_order(const T &side) const {
+    if (side.empty()) {
+      return std::nullopt;
+    }
+    return side.begin()->second.front();
+  }
+
+  template <typename T>
+  std::optional<std::uint64_t> get_best_price(const T &side) const {
+    if (side.empty()) {
+      return std::nullopt;
+    }
+    return side.begin()->first;
+  }
+
+  void fill_order() {
+    while (!buy_side_.empty() && !sell_side_.empty() &&
+           get_best_ask_price() <= get_best_bid_price()) {
+      std::int32_t buy_quantity{get_best_bid().get_quantity()};
+      std::int32_t sell_quantity{get_best_ask().get_quantity()};
+      std::int32_t fill_quantity{std::min(buy_quantity, sell_quantity)};
+    }
+  }
 
 public:
   void add_order(const Order &order) {
@@ -43,6 +72,23 @@ public:
     } else {
       sell_side_[order.get_price()].push_back(order);
     }
+    fill_order();
+  }
+
+  std::optional<Order> get_best_ask() const {
+    return get_best_order(sell_side_);
+  }
+
+  std::optional<std::uint64_t> get_best_ask_price() const {
+    return get_best_price(sell_side_);
+  }
+
+  std::optional<Order> get_best_bid() const {
+    return get_best_order(buy_side_);
+  }
+
+  std::optional<std::uint64_t> get_best_bid_price() const {
+    return get_best_price(buy_side_);
   }
 };
 
